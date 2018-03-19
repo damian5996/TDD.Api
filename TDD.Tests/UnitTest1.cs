@@ -53,7 +53,6 @@ namespace TDD.Tests
                     return BadRequest(result);
                 }
                 return Ok(result);
-                throw new NotImplementedException();
             }
         }
 
@@ -67,7 +66,11 @@ namespace TDD.Tests
             }
             public ResultDto<LoginResultDto> Login(LoginModel loginModel)
             {
-                throw new NotImplementedException();
+                var result = new ResultDto<LoginResultDto>();
+                var user = _userRepository.GetBy(x => x.Username == loginModel.Username);
+
+                result.SuccessResult = new LoginResultDto {Email = user.Email};
+                return result;
             }
             
         }
