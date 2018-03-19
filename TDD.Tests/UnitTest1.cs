@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Security.Cryptography.X509Certificates;
 using Xunit;
 using Moq;
 using Microsoft.AspNetCore.Mvc;
@@ -35,6 +36,29 @@ namespace TDD.Tests
 
         }
 
+        [Fact]
+        public void ShouldReturnErrorOnInvalidUser()
+        {
+            var error = "Has³o lub u¿ytkownik b³êdne";
+
+            var loginModel = new LoginModel
+            {
+                Username = "damian",
+                Password = "qwerty"
+            };
+
+            var userRepository = new Mock<IRepository<User>>();
+            var userService = new UserService(userRepository.Object);
+            var accountController = new AccountController(userService);
+
+            var result = accountController.Login(loginModel);
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var errorResult = Assert.IsAssignableFrom<ResultDto<LoginResultDto>>(badRequest.Value);
+
+            Assert.Contains(error, errorResult.Errors);
+
+        }
+
         public class AccountController : Controller
         {
             private readonly IUserService _userService;
@@ -66,8 +90,14 @@ namespace TDD.Tests
             }
             public ResultDto<LoginResultDto> Login(LoginModel loginModel)
             {
-                var result = new ResultDto<LoginResultDto>();
+                var result = new ResultDto<LoginResultDto>
+                {
+                    Errors = new List<string>()
+                };
+
                 var user = _userRepository.GetBy(x => x.Username == loginModel.Username);
+
+                
 
                 result.SuccessResult = new LoginResultDto {Email = user.Email};
                 return result;
