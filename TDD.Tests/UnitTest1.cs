@@ -1,12 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.IdentityModel.Tokens.Jwt;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
 using System.Text;
 using Xunit;
 using Moq;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Protocols;
+using Microsoft.IdentityModel.Tokens;
+using Microsoft.Extensions.Configuration;
 
 namespace TDD.Tests
 {
@@ -27,14 +32,18 @@ namespace TDD.Tests
             userRepository.Setup(x => x.Exist(It.IsAny<Func<User, bool>>())).Returns(true);
             userRepository.Setup(x => x.GetBy(It.IsAny<Func<User, bool>>())).Returns(user);
 
-            var userService = new UserService(userRepository.Object);
+            var configurationMock = new Mock<IConfigurationManager>();
+            configurationMock.Setup(x => x.GetValue(It.IsAny<string>())).Returns("qwertyuiosdfghjkkjhgfdsdfghjklhgfd");
+
+            var userService = new UserService(userRepository.Object, configurationMock.Object);
+
             var accountController = new AccountController(userService);
 
             var result = accountController.Login(loginModel);
             var okResult = Assert.IsType<OkObjectResult>(result);
             var email = Assert.IsAssignableFrom<ResultDto<LoginResultDto>>(okResult.Value);
 
-            Assert.Equal(user.Email, email.SuccessResult.Email);
+            Assert.NotNull(email.SuccessResult?.Token);
 
         }
 
@@ -50,7 +59,10 @@ namespace TDD.Tests
             };
 
             var userRepository = new Mock<IRepository<User>>();
-            var userService = new UserService(userRepository.Object);
+            var configurationMock = new Mock<IConfigurationManager>();
+            configurationMock.Setup(x => x.GetValue(It.IsAny<string>())).Returns("qwertyuiosdfghjkkjhgfdsdfghjklhgfd");
+
+            var userService = new UserService(userRepository.Object, configurationMock.Object);
             var accountController = new AccountController(userService);
 
             var result = accountController.Login(loginModel);
@@ -75,7 +87,11 @@ namespace TDD.Tests
             var userRepository = new Mock<IRepository<User>>();
             userRepository.Setup(x => x.Exist(It.IsAny<Func<User, bool>>())).Returns(true);
             userRepository.Setup(x => x.GetBy(It.IsAny<Func<User, bool>>())).Returns(user);
-            var userService = new UserService(userRepository.Object);
+
+            var configurationMock = new Mock<IConfigurationManager>();
+            configurationMock.Setup(x => x.GetValue(It.IsAny<string>())).Returns("qwertyuiosdfghjkkjhgfdsdfghjklhgfd");
+
+            var userService = new UserService(userRepository.Object, configurationMock.Object);
             var accountController = new AccountController(userService);
 
             var result = accountController.Login(loginModel);
@@ -84,6 +100,7 @@ namespace TDD.Tests
 
             Assert.Contains(error, errorResult.Errors);
         }
+
         public class AccountController : Controller
         {
             private readonly IUserService _userService;
@@ -119,10 +136,12 @@ namespace TDD.Tests
         public class UserService : IUserService
         {
             private readonly IRepository<User> _userRepository;
+            private readonly IConfigurationManager _configuration;
 
-            public UserService(IRepository<User> userRepository)
+            public UserService(IRepository<User> userRepository, IConfigurationManager configuration)
             {
                 _userRepository = userRepository;
+                _configuration = configuration;
             }
             public ResultDto<LoginResultDto> Login(LoginModel loginModel)
             {
@@ -139,9 +158,10 @@ namespace TDD.Tests
                     result.Errors.Add("Has³o lub u¿ytkownik b³êdne");
                     return result;
                 }
-                
+                var token = BuildToken(user, _configuration.GetValue("Jwt:Key"),
+                    _configuration.GetValue("Jwt: Issuer"));
 
-                result.SuccessResult = new LoginResultDto {Email = user.Email};
+                result.SuccessResult = new LoginResultDto {Token = token};
                 return result;
             }
             private string GetHash(string text)
@@ -155,11 +175,26 @@ namespace TDD.Tests
                     return BitConverter.ToString(hashedBytes).Replace("-", "").ToLower();
                 }
             }
+            public string BuildToken(User user, string secretKey, string issuer, DateTime? expirationDate = null)
+            {
+                var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(secretKey));
+                var creds = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
+                var claims = new[]
+                {
+                    new Claim(ClaimTypes.GivenName, user.Username),
+                    new Claim(ClaimTypes.Email, user.Email),
+                    new Claim(ClaimTypes.Sid, user.Id.ToString())
+                };
+                var token = new JwtSecurityToken(issuer, issuer, claims, expires: expirationDate,
+                    signingCredentials: creds);
+
+                return new JwtSecurityTokenHandler().WriteToken(token);
+            }
 
         }
         public class LoginResultDto : BaseDto
         {
-            public string Email { get; set; }
+            public string Token { get; set; }
         }
 
         public class ResultDto<T> where T : BaseDto
@@ -199,6 +234,26 @@ namespace TDD.Tests
 
         public class Entity
         {
+            public long Id { get; set; }
+        }
+        public interface IConfigurationManager
+        {
+            string GetValue(string key);
+        }
+
+        public class ConfigurationManager : IConfigurationManager
+        {
+            private readonly IConfiguration _configuration;
+
+            public ConfigurationManager(IConfiguration configuration)
+            {
+                _configuration = configuration;
+            }
+
+            public string GetValue(string key)
+            {
+                return _configuration[key];
+            }
         }
     }
     
