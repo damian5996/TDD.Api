@@ -29,7 +29,7 @@ namespace TDD.Tests
 
             var result = accountController.Login(loginModel);
             var okResult = Assert.IsType<OkObjectResult>(result);
-            var email = Assert.IsAssignableFrom<UserService.ResultDto<UserService.LoginResultDto>>(okResult.Value);
+            var email = Assert.IsAssignableFrom<ResultDto<LoginResultDto>>(okResult.Value);
 
             Assert.Equal(user.Email, email.SuccessResult.Email);
 
@@ -69,27 +69,27 @@ namespace TDD.Tests
             {
                 throw new NotImplementedException();
             }
+            
+        }
+        public class LoginResultDto : BaseDto
+        {
+            public string Email { get; set; }
+        }
 
-            public class LoginResultDto : BaseDto
-            {
-                public string Email { get; set; }
-            }
+        public class ResultDto<T> where T : BaseDto
+        {
+            public T SuccessResult { get; set; }
+            public List<string> Errors { get; set; }
+            public bool IsError => Errors?.Count > 0;
+        }
 
-            public class ResultDto<T> where T : BaseDto
-            {
-                public T SuccessResult { get; set; }
-                public List<string> Errors { get; set; }
-                public bool IsError => Errors?.Count > 0;
-            }
-
-            public class BaseDto
-            {
-            }
+        public class BaseDto
+        {
         }
 
         public interface IUserService
         {
-            UserService.ResultDto<UserService.LoginResultDto> Login(LoginModel loginModel);
+            ResultDto<LoginResultDto> Login(LoginModel loginModel);
         }
 
         public interface IRepository<T> where T : Entity
