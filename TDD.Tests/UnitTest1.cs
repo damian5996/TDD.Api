@@ -59,6 +59,29 @@ namespace TDD.Tests
 
         }
 
+        [Fact]
+        public void ShouldReturnErrorOnInvalidPassword()
+        {
+            var error = "Has³o lub u¿ytkownik b³êdne";
+            var user = new User {Username = "damian", Email = "damian@wp.pl", Password = "qwerty"};
+            var loginModel = new LoginModel
+            {
+                Username = "damian",
+                Password = "qwe"
+            };
+
+            var userRepository = new Mock<IRepository<User>>();
+            userRepository.Setup(x => x.Exist(It.IsAny<Func<User, bool>>())).Returns(true);
+            userRepository.Setup(x => x.GetBy(It.IsAny<Func<User, bool>>())).Returns(user);
+            var userService = new UserService(userRepository.Object);
+            var accountController = new AccountController(userService);
+
+            var result = accountController.Login(loginModel);
+            var badRequest = Assert.IsType<BadRequestObjectResult>(result);
+            var errorResult = Assert.IsAssignableFrom<ResultDto<LoginResultDto>>(badRequest.Value);
+
+            Assert.Contains(error, errorResult.Errors);
+        }
         public class AccountController : Controller
         {
             private readonly IUserService _userService;
