@@ -1,7 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Diagnostics;
+using System.Security.Cryptography;
 using System.Security.Cryptography.X509Certificates;
+using System.Text;
 using Xunit;
 using Moq;
 using Microsoft.AspNetCore.Mvc;
@@ -13,7 +15,7 @@ namespace TDD.Tests
         [Fact]
         public void ShouldLoginWithSuccess()
         {
-            var user = new User {Username = "damian", Email = "damian@wp.pl", Password = "qwerty"};
+            var user = new User {Username = "damian", Email = "damian@wp.pl", Password = GetHash("qwerty") };
 
             var loginModel = new LoginModel
             {
@@ -63,7 +65,7 @@ namespace TDD.Tests
         public void ShouldReturnErrorOnInvalidPassword()
         {
             var error = "Has³o lub u¿ytkownik b³êdne";
-            var user = new User {Username = "damian", Email = "damian@wp.pl", Password = "qwerty"};
+            var user = new User {Username = "damian", Email = "damian@wp.pl", Password = GetHash("qwerty")};
             var loginModel = new LoginModel
             {
                 Username = "damian",
@@ -102,6 +104,17 @@ namespace TDD.Tests
                 return Ok(result);
             }
         }
+        private string GetHash(string text)
+        {
+            // SHA512 is disposable by inheritance.  
+            using (var sha256 = SHA256.Create())
+            {
+                // Send a sample text to hash.  
+                var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(text));
+                // Get the hashed string.  
+                return BitConverter.ToString(hashedBytes).Replace("-", "").ToLower();
+            }
+        }
 
         public class UserService : IUserService
         {
@@ -117,12 +130,11 @@ namespace TDD.Tests
                 {
                     Errors = new List<string>()
                 };
-
-                var isUserExist = _userRepository.Exist(x => x.Username == loginModel.Username);
-
+                
                 var user = _userRepository.GetBy(x => x.Username == loginModel.Username);
 
-                if (!isUserExist)
+                
+                if (user?.Password != GetHash(loginModel.Password))
                 {
                     result.Errors.Add("Has³o lub u¿ytkownik b³êdne");
                     return result;
@@ -132,7 +144,18 @@ namespace TDD.Tests
                 result.SuccessResult = new LoginResultDto {Email = user.Email};
                 return result;
             }
-            
+            private string GetHash(string text)
+            {
+                // SHA512 is disposable by inheritance.  
+                using (var sha256 = SHA256.Create())
+                {
+                    // Send a sample text to hash.  
+                    var hashedBytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(text));
+                    // Get the hashed string.  
+                    return BitConverter.ToString(hashedBytes).Replace("-", "").ToLower();
+                }
+            }
+
         }
         public class LoginResultDto : BaseDto
         {
