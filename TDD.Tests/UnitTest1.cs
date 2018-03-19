@@ -95,8 +95,15 @@ namespace TDD.Tests
                     Errors = new List<string>()
                 };
 
+                var isUserExist = _userRepository.Exist(x => x.Username == loginModel.Username);
+
                 var user = _userRepository.GetBy(x => x.Username == loginModel.Username);
 
+                if (!isUserExist)
+                {
+                    result.Errors.Add("Has³o lub u¿ytkownik b³êdne");
+                    return result;
+                }
                 
 
                 result.SuccessResult = new LoginResultDto {Email = user.Email};
